@@ -19,6 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf
   visualization_msgs
   trajectory_msgs
+  pcl_ros
 )
 
 find_package(Eigen3 REQUIRED)

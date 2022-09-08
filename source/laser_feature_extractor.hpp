@@ -152,6 +152,7 @@ class Laser_feature
     int simu_wrist1_joint_index, simu_wrist2_joint_index, simu_wrist3_joint_index;
 
     std::string pointcloud_subscribername_real, pointcloud_subscribername_simu;
+    std::string pointcloud_subscribername;
 
     template<typename T>
     T get_ros_parameter(ros::NodeHandle &nh , const std::string parameter_name, T & parameter, const T default_val)
