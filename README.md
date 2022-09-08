@@ -1,5 +1,6 @@
 # LOAM-Livox
 ## A robust LiDAR Odometry and Mapping (LOAM) package for Livox-LiDAR
+## LOAM-LIVOX has been modified by myself 
 
 <div align="center">
     <img src="pics/zym_rotate.gif" width = 45% >
