@@ -1,3 +1,23 @@
+realrobotdof:
+    shoulder_joint: 0
+    upperArm_joint: 1
+    foreArm_joint: 2
+    wrist1_joint: 3
+    wrist2_joint: 4
+    wrist3_joint: 5
+
+simurobotdof:
+    shoulder_joint: 5
+    upperArm_joint: 6
+    foreArm_joint: 0
+    wrist1_joint: 7
+    wrist2_joint: 8
+    wrist3_joint: 9
+
+pointcloud_subscribername:
+    realrobot: "/livox/lidar"
+    simurobot: "/livox_scanlaser_livox"
+
 common:
     lidar_type: "livox"
     maximum_parallel_thread: 3      # number of thread use for interative pose optimization

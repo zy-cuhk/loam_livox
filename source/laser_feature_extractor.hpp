@@ -145,6 +145,14 @@ class Laser_feature
     double livox_extrinc_parameters_xyz[3]={0.0,     0.0,     0.1};
     double livox_quat[4];
     
+    int whether_realrobot;
+    int real_shoulder_joint_index, real_upperArm_joint_index, real_foreArm_joint_index;
+    int real_wrist1_joint_index, real_wrist2_joint_index, real_wrist3_joint_index;
+    int simu_shoulder_joint_index, simu_upperArm_joint_index, simu_foreArm_joint_index;
+    int simu_wrist1_joint_index, simu_wrist2_joint_index, simu_wrist3_joint_index;
+
+    std::string pointcloud_subscribername_real, pointcloud_subscribername_simu;
+
     template<typename T>
     T get_ros_parameter(ros::NodeHandle &nh , const std::string parameter_name, T & parameter, const T default_val)
     {
@@ -154,13 +162,32 @@ class Laser_feature
         return parameter;
     }
 
-
     int                       init_ros_env()
     {
 
         ros::NodeHandle nh;
         m_init_timestamp = ros::Time::now();
         init_livox_lidar_para(nh);
+
+        get_ros_parameter<int>( nh,"whether_realrobot", whether_realrobot, 1);
+
+        get_ros_parameter<int>( nh,"realrobotdof/shoulder_joint", real_shoulder_joint_index, 0);
+        get_ros_parameter<int>( nh,"realrobotdof/upperArm_joint", real_upperArm_joint_index, 1);
+        get_ros_parameter<int>( nh,"realrobotdof/foreArm_joint", real_foreArm_joint_index, 2);
+        get_ros_parameter<int>( nh,"realrobotdof/wrist1_joint", real_wrist1_joint_index, 3);
+        get_ros_parameter<int>( nh,"realrobotdof/wrist2_joint", real_wrist2_joint_index, 4);
+        get_ros_parameter<int>( nh,"realrobotdof/wrist3_joint", real_wrist3_joint_index, 5);
+
+        get_ros_parameter<int>( nh,"simurobotdof/shoulder_joint", simu_shoulder_joint_index, 5);
+        get_ros_parameter<int>( nh,"simurobotdof/upperArm_joint", simu_upperArm_joint_index, 6);
+        get_ros_parameter<int>( nh,"simurobotdof/foreArm_joint", simu_foreArm_joint_index, 0);
+        get_ros_parameter<int>( nh,"simurobotdof/wrist1_joint", simu_wrist1_joint_index, 7);
+        get_ros_parameter<int>( nh,"simurobotdof/wrist2_joint", simu_wrist2_joint_index, 8);
+        get_ros_parameter<int>( nh,"simurobotdof/wrist3_joint", simu_wrist3_joint_index, 9);
+
+        get_ros_parameter<std::string>( nh,"pointcloud_subscribername/realrobot", pointcloud_subscribername_real, "/livox/lidar" );
+        get_ros_parameter<std::string>( nh,"pointcloud_subscribername/simurobot", pointcloud_subscribername_simu, "/livox_scanlaser_livox" );
+
         get_ros_parameter<int>(nh, "feature_extraction/scan_line", m_laser_scan_number, 16 );
         get_ros_parameter<float>( nh,"feature_extraction/mapping_plane_resolution", m_plane_resolution, 0.8 );
         get_ros_parameter<float>( nh,"feature_extraction/mapping_line_resolution", m_line_resolution, 0.8 );
@@ -197,10 +224,12 @@ class Laser_feature
         m_map_pointcloud_corner_vec_vec.resize(m_maximum_input_lidar_pointcloud);
 
         subJointState.subscribe(nh, "/joint_states", 1);
+        if (whether_realrobot==1)
+            pointcloud_subscribername = pointcloud_subscribername_real;
+        else
+            pointcloud_subscribername = pointcloud_subscribername_simu;
 
-        subLaserCloud.subscribe(nh, "/livox_scanlaser_livox", 1);
-
-        // subLaserCloud.subscribe(nh, "/livox/lidar", 1);
+        subLaserCloud.subscribe(nh, pointcloud_subscribername, 1);
 
         sync_.reset(new Sync(syncPolicy(10), subJointState, subLaserCloud));
         sync_->registerCallback(boost::bind(&Laser_feature::laserCloudHandler, this, _1, _2, "/laser_points_0"));
@@ -285,12 +314,21 @@ class Laser_feature
 
         // -----------------------------------------------------------------------------------
         aubojoints.clear();
-        aubojoints.push_back(jointStateMsg->position[5]); // shoulder_joint index of the simulation painting robot       
-        aubojoints.push_back(jointStateMsg->position[6]); // upperArm_joint index of the simulation painting robot        
-        aubojoints.push_back(jointStateMsg->position[0]); // foreArm_joint index of the simulation painting robot         
-        aubojoints.push_back(jointStateMsg->position[7]); // wrist1_joint index of the simulation painting robot        
-        aubojoints.push_back(jointStateMsg->position[8]); // wrist2_joint index of the simulation painting robot        
-        aubojoints.push_back(jointStateMsg->position[9]); // wrist3_joint index of the simulation painting robot   
+        if (whether_realrobot==1){
+            aubojoints.push_back(jointStateMsg->position[real_shoulder_joint_index]); // shoulder_joint index of the painting robot       
+            aubojoints.push_back(jointStateMsg->position[real_upperArm_joint_index]); // upperArm_joint index of the painting robot        
+            aubojoints.push_back(jointStateMsg->position[real_foreArm_joint_index]); // foreArm_joint index of the painting robot         
+            aubojoints.push_back(jointStateMsg->position[real_wrist1_joint_index]); // wrist1_joint index of the painting robot        
+            aubojoints.push_back(jointStateMsg->position[real_wrist2_joint_index]); // wrist2_joint index of the painting robot        
+            aubojoints.push_back(jointStateMsg->position[real_wrist3_joint_index]); // wrist3_joint index of the painting robot   
+        }else{
+            aubojoints.push_back(jointStateMsg->position[simu_shoulder_joint_index]); // shoulder_joint index of the painting robot       
+            aubojoints.push_back(jointStateMsg->position[simu_upperArm_joint_index]); // upperArm_joint index of the painting robot        
+            aubojoints.push_back(jointStateMsg->position[simu_foreArm_joint_index]); // foreArm_joint index of the painting robot         
+            aubojoints.push_back(jointStateMsg->position[simu_wrist1_joint_index]); // wrist1_joint index of the painting robot        
+            aubojoints.push_back(jointStateMsg->position[simu_wrist2_joint_index]); // wrist2_joint index of the painting robot        
+            aubojoints.push_back(jointStateMsg->position[simu_wrist3_joint_index]); // wrist3_joint index of the painting robot   
+        }
         current_joints_position.resize(6);
         current_joints_position<<aubojoints[0], aubojoints[1], aubojoints[2], aubojoints[3], aubojoints[4], aubojoints[5];
 

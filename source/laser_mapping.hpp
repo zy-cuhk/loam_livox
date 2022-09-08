@@ -1696,7 +1696,7 @@ class Laser_mapping
         livoxodom_transform.setRotation( q );
         Eigen::Matrix4f livoxodom_mat;
         pcl_ros::transformAsMatrix(livoxodom_transform, livoxodom_mat);
-        br.sendTransform( tf::StampedTransform( livoxodom_transform, odomAftMapped.header.stamp, "aubo_base_link", "aft_mapped" ) );
+        br.sendTransform( tf::StampedTransform( livoxodom_transform, odomAftMapped.header.stamp, "laser_init", "aft_mapped" ) );
 
         m_mutex_ros_pub.unlock();
         *( m_logger_timer.get_ostream() ) << m_timer.toc_string( "Add new frame" ) << std::endl;
