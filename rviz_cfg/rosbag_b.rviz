@@ -6,6 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /Axes1
         - /GT1
         - /odometry1
         - /odometry1/odomPath1
@@ -37,6 +38,8 @@ Panels:
         - /nav_path1
         - /nav_path1/Path1
         - /nav_path1/Path2
+        - /Marker1
+        - /Marker1/Namespaces1
       Splitter Ratio: 0.49740931391716003
     Tree Height: 735
   - Class: rviz/Selection
@@ -88,7 +91,7 @@ Visualization Manager:
       Length: 0.5
       Name: Axes
       Radius: 0.10000000149011612
-      Reference Frame: <Fixed Frame>
+      Reference Frame: laser_init
       Value: true
     - Class: rviz/Group
       Displays:
@@ -352,8 +355,8 @@ Visualization Manager:
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 1.3550688028335571
-            Min Value: -1.5642788410186768
+            Max Value: 3.3670969009399414
+            Min Value: -3.971653699874878
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -361,7 +364,7 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: AxisColor
           Decay Time: 5
-          Enabled: true
+          Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Max Intensity: 4096
@@ -378,7 +381,7 @@ Visualization Manager:
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
+          Value: false
       Enabled: true
       Name: maps
     - Class: rviz/Group
@@ -579,7 +582,7 @@ Visualization Manager:
           Topic: /aft_mapped_to_init
           Unreliable: false
           Value: false
-      Enabled: true
+      Enabled: false
       Name: Odometry
     - Class: rviz/Group
       Displays:
@@ -821,7 +824,7 @@ Visualization Manager:
           Buffer Length: 1
           Class: rviz/Path
           Color: 170; 255; 0
-          Enabled: true
+          Enabled: false
           Head Diameter: 0.30000001192092896
           Head Length: 0.20000000298023224
           Length: 0.30000001192092896
@@ -839,27 +842,27 @@ Visualization Manager:
           Shaft Length: 0.10000000149011612
           Topic: /aft_loopclosure_path
           Unreliable: false
-          Value: true
+          Value: false
         - Alpha: 1
           Buffer Length: 1000
           Class: rviz/Path
           Color: 255; 0; 0
           Enabled: true
-          Head Diameter: 0.30000001192092896
-          Head Length: 0.20000000298023224
+          Head Diameter: 0.029999999329447746
+          Head Length: 0.019999999552965164
           Length: 0.30000001192092896
           Line Style: Lines
-          Line Width: 0.30000001192092896
+          Line Width: 0.029999999329447746
           Name: Path
           Offset:
             X: 0
             Y: 0
             Z: 0.009999999776482582
           Pose Color: 255; 85; 255
-          Pose Style: Axes
+          Pose Style: Arrows
           Radius: 0.029999999329447746
-          Shaft Diameter: 0.10000000149011612
-          Shaft Length: 0.10000000149011612
+          Shaft Diameter: 0.009999999776482582
+          Shaft Length: 0.009999999776482582
           Topic: /aft_mapped_path
           Unreliable: false
           Value: true
@@ -956,13 +959,13 @@ Visualization Manager:
       Use rainbow: true
       Value: false
     - Class: rviz/Marker
-      Enabled: true
+      Enabled: false
       Marker Topic: /manipulator_traj
       Name: Marker
       Namespaces:
-        traj: true
+        {}
       Queue Size: 100
-      Value: true
+      Value: false
   Enabled: true
   Global Options:
     Background Color: 0; 0; 0
@@ -991,25 +994,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 13.393026351928711
+      Distance: 4.751798629760742
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 2.711489677429199
-        Y: -1.4611667394638062
-        Z: 1.2565643787384033
+        X: -0.4173882305622101
+        Y: -1.7010914087295532
+        Z: 0.23619578778743744
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: -0.7947970628738403
+      Pitch: 0.005202350206673145
       Target Frame: aft_mapped
       Value: Orbit (rviz)
-      Yaw: 1.5165059566497803
+      Yaw: 1.3115060329437256
     Saved:
       - Class: rviz/Orbit
         Distance: 43.46240997314453
