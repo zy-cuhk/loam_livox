@@ -148,6 +148,7 @@ class Point_cloud_registration;
 class Laser_mapping
 {
   public:
+    std::string analysisfile_path;
     int m_current_frame_index = 0;
     int m_para_min_match_blur = 0.0;
     int m_para_max_match_blur = 0.3;
@@ -755,6 +756,9 @@ class Laser_mapping
 
         get_ros_parameter<std::string>( nh, "common/pcd_save_dir", m_pcd_save_dir_name, std::string( "./" ) );
         get_ros_parameter<std::string>( nh, "common/loop_save_dir", m_loop_save_dir_name, m_pcd_save_dir_name.append( "_loop" ) );
+
+        get_ros_parameter<std::string>( nh, "analysisfile_path", analysisfile_path, m_pcd_save_dir_name );
+
         m_sceene_align.init( m_loop_save_dir_name );
 
         if ( m_if_save_to_pcd_files )
@@ -1732,7 +1736,7 @@ class Laser_mapping
         }
         timer_all.tic();
 
-        std::string analysisfile_path = "/home/k/Loam_livox/analysis_file.log";
+        analysisfile_path = analysisfile_path + "/analysis_file.log";
         analysis_file.open(analysisfile_path);
         Eigen::MatrixXd livox_initmat(4,4), livox_mat(4,4), inv_livox_initmat(4,4), livox_odommat(4,4), livox_odomrot(3,3);
         double livox_odomquat[4], time_interval;
