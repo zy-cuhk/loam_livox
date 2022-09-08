@@ -40,6 +40,7 @@
 #include <ceres/ceres.h>
 #include <eigen3/Eigen/Dense>
 #include <future>
+#include <geometry_msgs/PoseStamped.h>
 #include <iostream>
 #include <math.h>
 #include <mutex>
@@ -51,13 +52,10 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
-#include <pcl_ros/impl/transforms.hpp>
 #include <queue>
 #include <ros/ros.h>
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/PointCloud2.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/Point.h>
 #include <string>
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
@@ -73,19 +71,6 @@
 #include "tools/pcl_tools.hpp"
 #include "tools/tools_logger.hpp"
 #include "tools/tools_timer.hpp"
-#include <fstream>
-
-#include <visualization_msgs/Marker.h>
-#include <visualization_msgs/MarkerArray.h>
-#include <moveit_msgs/DisplayTrajectory.h>
-
-#include <Eigen/Core>
-#include <Eigen/Dense>
-#include <Eigen/Geometry>
-#include "aubo_kinematics.h"
-#include <std_msgs/ColorRGBA.h>
-
-using namespace Eigen;
 
 #define PUB_SURROUND_PTS 1
 #define PCD_SAVE_RAW 1
@@ -106,12 +91,9 @@ struct Data_pair
     sensor_msgs::PointCloud2ConstPtr m_pc_corner;
     sensor_msgs::PointCloud2ConstPtr m_pc_full;
     sensor_msgs::PointCloud2ConstPtr m_pc_plane;
-    geometry_msgs::PoseStampedConstPtr  m_livoxpose;
-
     bool                             m_has_pc_corner = 0;
     bool                             m_has_pc_full = 0;
     bool                             m_has_pc_plane = 0;
-    bool                             m_has_livoxpose = 0;
 
     void add_pc_corner( sensor_msgs::PointCloud2ConstPtr ros_pc )
     {
@@ -131,15 +113,9 @@ struct Data_pair
         m_has_pc_full = true;
     }
 
-    void add_livox_pose( geometry_msgs::PoseStampedConstPtr ros_pc )
-    {
-        m_livoxpose = ros_pc;
-        m_has_livoxpose = true;
-    }
-
     bool is_completed()
     {
-        return ( m_has_pc_corner & m_has_pc_full & m_has_pc_plane & m_has_livoxpose );
+        return ( m_has_pc_corner & m_has_pc_full & m_has_pc_plane );
     }
 };
 
@@ -190,11 +166,6 @@ class Laser_mapping
     std::list<double>                     m_his_reg_error;
     Eigen::Quaterniond                    m_last_his_add_q;
     Eigen::Vector3d                       m_last_his_add_t;
-
-    int count_num = 0;
-    geometry_msgs::PoseStamped  livox_pose, livox_initpose;
-    ofstream logfile, analysis_file;
-    visualization_msgs::Marker traj_marker;
 
     //
     std::map<int, float> m_map_life_time_corner;
@@ -272,9 +243,8 @@ class Laser_mapping
 
     ros::Publisher  m_pub_laser_cloud_surround, m_pub_laser_cloud_map, m_pub_laser_cloud_full_res, m_pub_odom_aft_mapped, m_pub_odom_aft_mapped_hight_frec;
     ros::Publisher  m_pub_laser_aft_mapped_path, m_pub_laser_aft_loopclosure_path;
-    ros::Publisher  manipulator_traj_pub;
     ros::NodeHandle m_ros_node_handle;
-    ros::Subscriber m_sub_laser_cloud_corner_last, m_sub_laser_cloud_surf_last, m_sub_laser_odom, m_sub_laser_cloud_full_res, m_sub_livox_pose;
+    ros::Subscriber m_sub_laser_cloud_corner_last, m_sub_laser_cloud_surf_last, m_sub_laser_odom, m_sub_laser_cloud_full_res;
 
     ceres::Solver::Summary m_final_opt_summary;
     //std::list<std::thread* > m_thread_pool;
@@ -626,7 +596,6 @@ class Laser_mapping
         m_sub_laser_cloud_corner_last = m_ros_node_handle.subscribe<sensor_msgs::PointCloud2>( "/pc2_corners", 10000, &Laser_mapping::laserCloudCornerLastHandler, this );
         m_sub_laser_cloud_surf_last = m_ros_node_handle.subscribe<sensor_msgs::PointCloud2>( "/pc2_surface", 10000, &Laser_mapping::laserCloudSurfLastHandler, this );
         m_sub_laser_cloud_full_res = m_ros_node_handle.subscribe<sensor_msgs::PointCloud2>( "/pc2_full", 10000, &Laser_mapping::laserCloudFullResHandler, this );
-        m_sub_livox_pose = m_ros_node_handle.subscribe<geometry_msgs::PoseStamped>("/livox_pose", 10000,  &Laser_mapping::livoxPoseHandler, this);
 
         m_pub_laser_cloud_surround = m_ros_node_handle.advertise<sensor_msgs::PointCloud2>( "/laser_cloud_surround", 10000 );
 
@@ -644,9 +613,7 @@ class Laser_mapping
         m_pub_odom_aft_mapped_hight_frec = m_ros_node_handle.advertise<nav_msgs::Odometry>( "/aft_mapped_to_init_high_frec", 10000 );
         m_pub_laser_aft_mapped_path = m_ros_node_handle.advertise<nav_msgs::Path>( "/aft_mapped_path", 10000 );
         m_pub_laser_aft_loopclosure_path = m_ros_node_handle.advertise<nav_msgs::Path>( "/aft_loopclosure_path", 10000 );
-        manipulator_traj_pub = m_ros_node_handle.advertise<visualization_msgs::Marker>("/manipulator_traj",10000);
-
-
+        
         m_pt_cell_map_full.set_resolution( m_pt_cell_resolution );
         m_pt_cell_map_full.m_minimum_revisit_threshold = m_para_threshold_cell_revisit;
 
@@ -812,18 +779,6 @@ class Laser_mapping
         }
     }
 
-    void livoxPoseHandler( const geometry_msgs::PoseStampedConstPtr &livoxPoseRes2 )
-    {
-        std::unique_lock<std::mutex> lock( m_mutex_buf );
-        Data_pair *                  data_pair = get_data_pair( livoxPoseRes2->header.stamp.toSec() );
-        data_pair->add_livox_pose( livoxPoseRes2 );
-        if ( data_pair->is_completed() )
-        {
-            m_queue_avail_data.push( data_pair );
-        }
-    }
-
-
     template <typename T, typename TT>
     static void save_mat_to_json_writter( T &writer, const std::string &name, const TT &eigen_mat )
     {
@@ -889,10 +844,12 @@ class Laser_mapping
 
     void loop_closure_pub_optimzed_path( const Ceres_pose_graph_3d::MapOfPoses &pose3d_aft_loopclosure )
     {
+
         nav_msgs::Odometry odom;
         m_laser_after_loopclosure_path.header.stamp = ros::Time::now();
-        m_laser_after_loopclosure_path.header.frame_id = "laser_init";
-        for ( auto it = pose3d_aft_loopclosure.begin(); it != pose3d_aft_loopclosure.end(); it++ )
+        m_laser_after_loopclosure_path.header.frame_id = "camera_init";
+        for ( auto it = pose3d_aft_loopclosure.begin();
+              it != pose3d_aft_loopclosure.end(); it++ )
         {
             geometry_msgs::PoseStamped  pose_stamp;
             Ceres_pose_graph_3d::Pose3d pose_3d = it->second;
@@ -905,7 +862,7 @@ class Laser_mapping
             pose_stamp.pose.position.y = pose_3d.p( 1 );
             pose_stamp.pose.position.z = pose_3d.p( 2 );
 
-            pose_stamp.header.frame_id = "laser_init";
+            pose_stamp.header.frame_id = "camera_init";
             
             m_laser_after_loopclosure_path.poses.push_back( pose_stamp );
         }
@@ -1137,7 +1094,7 @@ class Laser_mapping
                             auto refined_pt = map_rfn.refine_pointcloud( map_id_pc, pose3d_map_ori, temp_pose_3d_map, pc_idx, 0 );
                             pcl::toROSMsg( refined_pt, ros_laser_cloud_surround );
                             ros_laser_cloud_surround.header.stamp = ros::Time::now();
-                            ros_laser_cloud_surround.header.frame_id = "laser_init";
+                            ros_laser_cloud_surround.header.frame_id = "camera_init";
                             m_pub_pc_aft_loop.publish( ros_laser_cloud_surround );
                             std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
                         }
@@ -1147,7 +1104,7 @@ class Laser_mapping
                             map_rfn.refine_mapping( map_id_pc, pose3d_map_ori, temp_pose_3d_map, 1 );
                             pcl::toROSMsg( map_rfn.m_pts_aft_refind, ros_laser_cloud_surround );
                             ros_laser_cloud_surround.header.stamp = ros::Time::now();
-                            ros_laser_cloud_surround.header.frame_id = "laser_init";
+                            ros_laser_cloud_surround.header.frame_id = "camera_init";
                             m_pub_pc_aft_loop.publish( ros_laser_cloud_surround );
                         }
                         if_end = 1;
@@ -1179,7 +1136,7 @@ class Laser_mapping
                 m_timer.tic( "Pub surround pts" );
                 pcl::toROSMsg( pt_full, ros_laser_cloud_surround );
                 ros_laser_cloud_surround.header.stamp = ros::Time::now();
-                ros_laser_cloud_surround.header.frame_id = "laser_init";
+                ros_laser_cloud_surround.header.frame_id = "camera_init";
                 m_pub_debug_pts.publish( ros_laser_cloud_surround );
                 screen_out << m_timer.toc_string( "Pub surround pts" ) << std::endl;
             }
@@ -1236,7 +1193,7 @@ class Laser_mapping
                 down_sample_filter_surface.filter( *laser_cloud_surround );
                 pcl::toROSMsg( *laser_cloud_surround, ros_laser_cloud_surround );
                 ros_laser_cloud_surround.header.stamp = ros::Time::now();
-                ros_laser_cloud_surround.header.frame_id = "laser_init";
+                ros_laser_cloud_surround.header.frame_id = "camera_init";
                 m_pub_laser_cloud_surround.publish( ros_laser_cloud_surround );
             }
             //screen_out << "~~~~~~~~~~~ " << "pub_surround_service, size = " << laser_cloud_surround->points.size()  << " ~~~~~~~~~~~" << endl;
@@ -1270,7 +1227,7 @@ class Laser_mapping
         Eigen::Vector3d    t_w_curr = Eigen::Vector3d::Zero();
 
         nav_msgs::Odometry odomAftMapped;
-        odomAftMapped.header.frame_id = "laser_init";
+        odomAftMapped.header.frame_id = "camera_init";
         odomAftMapped.child_frame_id = "aft_mapped";
         odomAftMapped.header.stamp = laserOdometry->header.stamp;
         odomAftMapped.pose.pose.orientation.x = q_w_curr.x();
@@ -1330,7 +1287,6 @@ class Laser_mapping
         pc_reg.m_maximum_pt_time_stamp = m_maximum_pt_time_stamp;
         pc_reg.m_minimum_icp_R_diff = m_minimum_icp_R_diff;
         pc_reg.m_minimum_icp_T_diff = m_minimum_icp_T_diff;
-
         pc_reg.m_q_w_last = m_q_w_curr;
         pc_reg.m_t_w_last = m_t_w_curr;
 
@@ -1580,7 +1536,7 @@ class Laser_mapping
                 m_keyframe_of_updating_list.front()->m_ending_frame_idx = m_current_frame_index;
                 
                 m_keyframe_of_updating_list.front()->m_pose_q = m_q_w_curr;
-                m_keyframe_of_updating_list.front()->m_pose_t = m_t_w_curr;
+                m_keyframe_of_updating_list.front()->m_pose_t =  m_t_w_curr;
                 
                 m_keyframe_need_precession_list.push_back( m_keyframe_of_updating_list.front() );
                 m_keyframe_of_updating_list.pop_front();
@@ -1615,7 +1571,7 @@ class Laser_mapping
         sensor_msgs::PointCloud2 laserCloudFullRes3;
         pcl::toROSMsg( current_laser_cloud_full, laserCloudFullRes3 );
         laserCloudFullRes3.header.stamp = ros::Time().fromSec( time_odom );
-        laserCloudFullRes3.header.frame_id = "laser_init";
+        laserCloudFullRes3.header.frame_id = "camera_init";
         m_pub_laser_cloud_full_res.publish( laserCloudFullRes3 ); //single_frame_with_pose_tranfromed
 
         if ( PUB_DEBUG_INFO )
@@ -1626,12 +1582,12 @@ class Laser_mapping
             pc_reg.pointcloudAssociateToMap( current_laser_cloud_surf_last, pc_feature_pub_surface, g_if_undistore );
             pcl::toROSMsg( pc_feature_pub_surface, laserCloudMsg );
             laserCloudMsg.header.stamp = ros::Time().fromSec( time_odom );
-            laserCloudMsg.header.frame_id = "laser_init";
+            laserCloudMsg.header.frame_id = "camera_init";
             m_pub_last_surface_pts.publish( laserCloudMsg );
             pc_reg.pointcloudAssociateToMap( current_laser_cloud_corner_last, pc_feature_pub_corners, g_if_undistore );
             pcl::toROSMsg( pc_feature_pub_corners, laserCloudMsg );
             laserCloudMsg.header.stamp = ros::Time().fromSec( time_odom );
-            laserCloudMsg.header.frame_id = "laser_init";
+            laserCloudMsg.header.frame_id = "camera_init";
             m_pub_last_corner_pts.publish( laserCloudMsg );
         }
 
@@ -1640,12 +1596,12 @@ class Laser_mapping
             sensor_msgs::PointCloud2 laserCloudMsg;
             pcl::toROSMsg( *laser_cloud_surf_from_map, laserCloudMsg );
             laserCloudMsg.header.stamp = ros::Time().fromSec( time_odom );
-            laserCloudMsg.header.frame_id = "laser_init";
+            laserCloudMsg.header.frame_id = "camera_init";
             m_pub_match_surface_pts.publish( laserCloudMsg );
 
             pcl::toROSMsg( *laser_cloud_corner_from_map, laserCloudMsg );
             laserCloudMsg.header.stamp = ros::Time().fromSec( time_odom );
-            laserCloudMsg.header.frame_id = "laser_init";
+            laserCloudMsg.header.frame_id = "camera_init";
             m_pub_match_corner_pts.publish( laserCloudMsg );
         }
 
@@ -1657,7 +1613,7 @@ class Laser_mapping
 
         //printf_line;
         nav_msgs::Odometry odomAftMapped;
-        odomAftMapped.header.frame_id = "laser_init";
+        odomAftMapped.header.frame_id = "camera_init";
         odomAftMapped.child_frame_id = "aft_mapped";
         odomAftMapped.header.stamp = ros::Time().fromSec( time_odom );
         
@@ -1676,7 +1632,7 @@ class Laser_mapping
         pose_aft_mapped.header = odomAftMapped.header;
         pose_aft_mapped.pose = odomAftMapped.pose.pose;
         m_laser_after_mapped_path.header.stamp = odomAftMapped.header.stamp;
-        m_laser_after_mapped_path.header.frame_id = "laser_init";
+        m_laser_after_mapped_path.header.frame_id = "camera_init";
 
         if ( m_current_frame_index % 10 == 0 )
         {
@@ -1685,18 +1641,16 @@ class Laser_mapping
         }
 
         static tf::TransformBroadcaster br;
-        tf::Transform                   livoxodom_transform;
+        tf::Transform                   transform;
         tf::Quaternion                  q;
+        transform.setOrigin( tf::Vector3( m_t_w_curr( 0 ), m_t_w_curr( 1 ), m_t_w_curr( 2 ) ) );
 
-        livoxodom_transform.setOrigin( tf::Vector3( m_t_w_curr( 0 ), m_t_w_curr( 1 ), m_t_w_curr( 2 ) ) );
         q.setW( m_q_w_curr.w() );
         q.setX( m_q_w_curr.x() );
         q.setY( m_q_w_curr.y() );
         q.setZ( m_q_w_curr.z() );
-        livoxodom_transform.setRotation( q );
-        Eigen::Matrix4f livoxodom_mat;
-        pcl_ros::transformAsMatrix(livoxodom_transform, livoxodom_mat);
-        br.sendTransform( tf::StampedTransform( livoxodom_transform, odomAftMapped.header.stamp, "aubo_base_link", "aft_mapped" ) );
+        transform.setRotation( q );
+        br.sendTransform( tf::StampedTransform( transform, odomAftMapped.header.stamp, "camera_init", "aft_mapped" ) );
 
         m_mutex_ros_pub.unlock();
         *( m_logger_timer.get_ostream() ) << m_timer.toc_string( "Add new frame" ) << std::endl;
@@ -1732,13 +1686,8 @@ class Laser_mapping
         }
         timer_all.tic();
 
-        std::string analysisfile_path = "/home/k/Loam_livox/analysis_file.log";
-        analysis_file.open(analysisfile_path);
-        Eigen::MatrixXd livox_initmat(4,4), livox_mat(4,4), inv_livox_initmat(4,4), livox_odommat(4,4), livox_odomrot(3,3);
-        double livox_odomquat[4], time_interval;
         while ( 1 )
         {
-            ROS_INFO("mark it at 1726");
 
             //printf_line;
             m_logger_common.printf( "------------------\r\n" );
@@ -1757,8 +1706,6 @@ class Laser_mapping
                 m_queue_avail_data.pop();
             }
 
-            ROS_INFO("mark it at 1749");
-
             Data_pair *current_data_pair = m_queue_avail_data.front();
             m_queue_avail_data.pop();
             m_mutex_buf.unlock();
@@ -1775,9 +1722,6 @@ class Laser_mapping
             ( *m_logger_common.get_ostream() ) << "Messgage time stamp = " << m_time_pc_corner_past - first_time_stamp << endl;
 
             m_mutex_querypointcloud.lock();
-
-            ROS_INFO("mark it at 1768");
-
             m_laser_cloud_corner_last->clear();
             pcl::fromROSMsg( *( current_data_pair->m_pc_corner ), *m_laser_cloud_corner_last );
 
@@ -1786,55 +1730,9 @@ class Laser_mapping
 
             m_laser_cloud_full_res->clear();
             pcl::fromROSMsg( *( current_data_pair->m_pc_full ), *m_laser_cloud_full_res );
-
-            livox_pose = *(current_data_pair->m_livoxpose);
-            transformPosetoMat(livox_pose, livox_mat);
-            // ROS_INFO("the position of livox pose is %f , %f, %f", livox_mat(0,3), livox_mat(1,3), livox_mat(2,3));
-
-            // ROS_INFO("mark it at 1774");
-
-            ROS_INFO("The count num is: %d", count_num);
-            if (count_num == 0){
-                livox_initpose = *(current_data_pair->m_livoxpose);
-                transformPosetoMat(livox_initpose, livox_initmat);
-                // ROS_INFO("the position of Init livox pose is %f , %f, %f", livox_initmat(0,3), livox_initmat(1,3), livox_initmat(2,3));
-                inv_mat(livox_initmat, inv_livox_initmat);
-                // ROS_INFO("the position of inv Init livox pose is %f , %f, %f", inv_livox_initmat(0,3), inv_livox_initmat(1,3), inv_livox_initmat(2,3));
-            }
-            count_num = count_num + 1;
-
-            // ROS_INFO("mark it at 1783");
-
-            livox_odommat = inv_livox_initmat * livox_mat;
-            livox_odomrot = livox_odommat.block(0,0,3,3);
-            RotMatrixtoQuat(livox_odomrot, livox_odomquat);
-            m_q_w_curr.w() = livox_odomquat[0];
-            m_q_w_curr.x() = livox_odomquat[1];
-            m_q_w_curr.y() = livox_odomquat[2];
-            m_q_w_curr.z() = livox_odomquat[3];
-            m_t_w_curr << livox_odommat(0,3), livox_odommat(1,3), livox_odommat(2,3);         
-
-            time_interval = m_time_pc_corner_past - first_time_stamp;
-            ROS_INFO("the position of livox odom is %f , %f, %f", livox_odommat(0,3), livox_odommat(1,3), livox_odommat(2,3));
-            ROS_INFO("the orientation of livox odom is %f , %f, %f, %f", m_q_w_curr.x(), m_q_w_curr.y(), m_q_w_curr.z(), m_q_w_curr.w());
-            ROS_INFO("Messgage time stamp is %f", time_interval);
-
-            analysis_file<<"Messgage time stamp is: "<<time_interval<<endl;
-
-            analysis_file<<"the position of livox odom is: "
-                         <<livox_odommat(0,3)<<", "<<livox_odommat(1,3)<<", "<<livox_odommat(2,3)<<endl;
-
-            analysis_file<<"the orientation of livox odom is: "
-                         <<m_q_w_curr.x()<<", "<<m_q_w_curr.y()<<", "<<m_q_w_curr.z()<<", "<<m_q_w_curr.w()<<endl;
-
-            analysis_file<<"----------------------------------------------"<<endl;
-
             m_mutex_querypointcloud.unlock();
 
             delete current_data_pair;
-
-            visualize_ManipulatorTrajectory(livox_odommat, traj_marker);
-            manipulator_traj_pub.publish(traj_marker);
 
             Common_tools::maintain_maximum_thread_pool<std::future<int> *>( m_thread_pool, m_maximum_parallel_thread );
 
@@ -1846,69 +1744,6 @@ class Laser_mapping
             std::this_thread::sleep_for( std::chrono::nanoseconds( 10 ) );
 
         }
-        analysis_file.flush();
-        analysis_file.close();
-    }
-
-    void transformPosetoMat(geometry_msgs::PoseStamped& livox_pose, 
-                            MatrixXd& livox_mat)
-    {
-        double livox_quat[4], livox_rot[9];
-        livox_quat[0] = livox_pose.pose.orientation.w;
-        livox_quat[1] = livox_pose.pose.orientation.x;
-        livox_quat[2] = livox_pose.pose.orientation.y;
-        livox_quat[3] = livox_pose.pose.orientation.z;
-        quaternionToOriMatrix(livox_quat, livox_rot);
-        MatrixXd livox_rotmat(3,3);
-        livox_rotmat << livox_rot[0],livox_rot[1],livox_rot[2],
-                        livox_rot[3],livox_rot[4],livox_rot[5],
-                        livox_rot[6],livox_rot[7],livox_rot[8]; 
-        livox_mat.block(0,0,3,3) = livox_rotmat;
-        livox_mat(0,3) = livox_pose.pose.position.x; 
-        livox_mat(1,3) = livox_pose.pose.position.y;
-        livox_mat(2,3) = livox_pose.pose.position.z;
-        livox_mat.row(3) << 0, 0, 0, 1;
-    }
-    void inv_mat(MatrixXd &T, MatrixXd &inv_T){
-        Eigen::MatrixXd inv_rot_T(3,3), T_rot(3,3);
-        Eigen::VectorXd tran_T(3), inv_tran_T(3);
-        // ROS_INFO("the line is 1838");
-        T_rot = T.block(0,0,3,3);
-        // ROS_INFO("the line is 1839");
-        inv_rot_T = T_rot.transpose();
-        tran_T << T(0,3), T(1,3), T(2,3); 
-        // ROS_INFO("the line is 1840");
-        inv_T.block(0,0,3,3) = inv_rot_T;
-        inv_tran_T = -inv_rot_T * tran_T;
-        inv_T(0,3) =  inv_tran_T(0);
-        inv_T(1,3) =  inv_tran_T(1);
-        inv_T(2,3) =  inv_tran_T(2);
-        inv_T.row(3) << 0, 0, 0, 1;
-    }
-
-    void visualize_ManipulatorTrajectory(Eigen::MatrixXd& livox_odommat, visualization_msgs::Marker& traj_marker){
-
-        traj_marker.header.stamp = ros::Time::now();
-        traj_marker.header.frame_id = "laser_init";
-        traj_marker.ns = "traj";
-        traj_marker.pose.orientation.w = 1;
-        traj_marker.type = visualization_msgs::Marker::LINE_STRIP;
-        traj_marker.action = visualization_msgs::Marker::ADD;
-        traj_marker.scale.x = 0.03; // 0.2; 0.03
-        traj_marker.lifetime = ros::Duration();
-
-        geometry_msgs::Point p;
-        p.x = livox_odommat(0,3);
-        p.y = livox_odommat(1,3);
-        p.z = livox_odommat(2,3);
-        traj_marker.points.push_back(p);
-        std_msgs::ColorRGBA c;
-        c.g = 0.0;
-        c.r = 1.0;
-        c.b = 0.0;
-        c.a = 1.0;
-        traj_marker.colors.push_back(c);
-
     }
 };
 

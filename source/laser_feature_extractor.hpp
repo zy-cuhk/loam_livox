@@ -48,6 +48,7 @@
 #include <ros/ros.h>
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/JointState.h>
 #include <string>
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
@@ -57,10 +58,25 @@
 #include "tools/common.h"
 #include "tools/tools_logger.hpp"
 
+#include <message_filters/subscriber.h>
+#include <message_filters/sync_policies/approximate_time.h>
+#include <message_filters/synchronizer.h>
+
+#include <Eigen/Core>
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
+
+#include "aubo_kinematics.h"
+#include "geometry_msgs/PoseStamped.h"
+
 using std::atan2;
 using std::cos;
 using std::sin;
+using namespace Eigen;
 using namespace Common_tools;
+
+typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::JointState, sensor_msgs::PointCloud2> syncPolicy;
+typedef message_filters::Synchronizer<syncPolicy> Sync;
 
 class Laser_feature
 {
@@ -105,19 +121,30 @@ class Laser_feature
     ros::Publisher              m_pub_pc_surface_less_flat;
     ros::Publisher              m_pub_pc_removed_pt;
     std::vector<ros::Publisher>                                         m_pub_each_scan;
+    std::vector<ros::Subscriber> m_sub_input_laser_cloud_vec;
+
+    message_filters::Subscriber<sensor_msgs::JointState> subJointState;
+    message_filters::Subscriber<sensor_msgs::PointCloud2> subLaserCloud;
+    boost::shared_ptr<Sync> sync_;
 
     std::vector<std::string> m_input_lidar_topic_name_vec;
-    std::vector<ros::Subscriber> m_sub_input_laser_cloud_vec;
     std::vector< std::vector<pcl::PointCloud<pcl::PointXYZI> > >   m_map_pointcloud_full_vec_vec;
     std::vector< std::vector<pcl::PointCloud<pcl::PointXYZI> > >   m_map_pointcloud_surface_vec_vec;
     std::vector< std::vector<pcl::PointCloud<pcl::PointXYZI> > >   m_map_pointcloud_corner_vec_vec;
     double m_minimum_range = 0.01;
 
-    ros::Publisher            m_pub_pc_livox_corners, m_pub_pc_livox_surface, m_pub_pc_livox_full;
+    ros::Publisher            m_pub_pc_livox_corners, m_pub_pc_livox_surface, m_pub_pc_livox_full, m_pub_livox_posestamped;
+
     sensor_msgs::PointCloud2  temp_out_msg;
     pcl::VoxelGrid<PointType> m_voxel_filter_for_surface;
     pcl::VoxelGrid<PointType> m_voxel_filter_for_corner;
 
+    std::vector<float> aubojoints;
+    VectorXd current_joints_position;
+    double livox_extrinc_parameters_rpy[3]={0.0, -1.5708, -1.5708};
+    double livox_extrinc_parameters_xyz[3]={0.0,     0.0,     0.1};
+    double livox_quat[4];
+    
     template<typename T>
     T get_ros_parameter(ros::NodeHandle &nh , const std::string parameter_name, T & parameter, const T default_val)
     {
@@ -163,17 +190,25 @@ class Laser_feature
             return 0;
         }
 
-
         m_file_logger.set_log_dir( log_save_dir_name );
         m_file_logger.init( "scanRegistration.log" );
         m_map_pointcloud_full_vec_vec.resize(m_maximum_input_lidar_pointcloud);
         m_map_pointcloud_surface_vec_vec.resize(m_maximum_input_lidar_pointcloud);
         m_map_pointcloud_corner_vec_vec.resize(m_maximum_input_lidar_pointcloud);
 
+        subJointState.subscribe(nh, "/joint_states", 1);
+
+        subLaserCloud.subscribe(nh, "/livox_scanlaser_livox", 1);
+
+        // subLaserCloud.subscribe(nh, "/livox/lidar", 1);
+
+        sync_.reset(new Sync(syncPolicy(10), subJointState, subLaserCloud));
+        sync_->registerCallback(boost::bind(&Laser_feature::laserCloudHandler, this, _1, _2, "/laser_points_0"));
+
         for(int i = 0 ; i< m_maximum_input_lidar_pointcloud; i++)
         {
             m_input_lidar_topic_name_vec.push_back(string("laser_points_").append(std::to_string(i)));
-            m_sub_input_laser_cloud_vec.push_back( nh.subscribe<sensor_msgs::PointCloud2>( m_input_lidar_topic_name_vec.back(), 10000, boost::bind( &Laser_feature::laserCloudHandler, this, _1,  m_input_lidar_topic_name_vec.back()) ) );
+            // m_sub_input_laser_cloud_vec.push_back( nh.subscribe<sensor_msgs::PointCloud2>( m_input_lidar_topic_name_vec.back(), 10000, boost::bind( &Laser_feature::laserCloudHandler, this, _1, m_input_lidar_topic_name_vec.back()) ) );
             m_map_pointcloud_full_vec_vec[i].resize(m_piecewise_number);
             m_map_pointcloud_surface_vec_vec[i].resize(m_piecewise_number);
             m_map_pointcloud_corner_vec_vec[i].resize(m_piecewise_number);
@@ -188,6 +223,8 @@ class Laser_feature
         m_pub_pc_livox_corners = nh.advertise<sensor_msgs::PointCloud2>( "/pc2_corners", 10000 );
         m_pub_pc_livox_surface = nh.advertise<sensor_msgs::PointCloud2>( "/pc2_surface", 10000 );
         m_pub_pc_livox_full = nh.advertise<sensor_msgs::PointCloud2>( "/pc2_full", 10000 );
+
+        m_pub_livox_posestamped = nh.advertise<geometry_msgs::PoseStamped>( "/livox_pose", 10000 );
 
         m_voxel_filter_for_surface.setLeafSize( m_plane_resolution / 2, m_plane_resolution / 2, m_plane_resolution / 2 );
         m_voxel_filter_for_corner.setLeafSize( m_line_resolution, m_line_resolution, m_line_resolution );
@@ -239,8 +276,48 @@ class Laser_feature
         cloud_out.is_dense = true;
     }
 
-    void laserCloudHandler( const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg, const std::string & topic_name )
+    void laserCloudHandler( const sensor_msgs::JointStateConstPtr &jointStateMsg,
+                            const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg, 
+                            const std::string & topic_name )
     {
+        ENABLE_SCREEN_PRINTF;
+        screen_out<<"here is laser cloud handler"<<std::endl;
+
+        // -----------------------------------------------------------------------------------
+        aubojoints.clear();
+        aubojoints.push_back(jointStateMsg->position[5]); // shoulder_joint index of the simulation painting robot       
+        aubojoints.push_back(jointStateMsg->position[6]); // upperArm_joint index of the simulation painting robot        
+        aubojoints.push_back(jointStateMsg->position[0]); // foreArm_joint index of the simulation painting robot         
+        aubojoints.push_back(jointStateMsg->position[7]); // wrist1_joint index of the simulation painting robot        
+        aubojoints.push_back(jointStateMsg->position[8]); // wrist2_joint index of the simulation painting robot        
+        aubojoints.push_back(jointStateMsg->position[9]); // wrist3_joint index of the simulation painting robot   
+        current_joints_position.resize(6);
+        current_joints_position<<aubojoints[0], aubojoints[1], aubojoints[2], aubojoints[3], aubojoints[4], aubojoints[5];
+
+        MatrixXd auboWrist3toBase_mat(4,4), LivoxtoWrist3link(4,4), LivoxtoAuboBase(4,4);
+
+        aubo_forward(auboWrist3toBase_mat, current_joints_position);
+        LivoxtoWrist3link.block(0,0,3,3) = RPYtoRotMatrix(livox_extrinc_parameters_rpy);
+        LivoxtoWrist3link(0,3) = livox_extrinc_parameters_xyz[0];
+        LivoxtoWrist3link(1,3) = livox_extrinc_parameters_xyz[1];
+        LivoxtoWrist3link(2,3) = livox_extrinc_parameters_xyz[2];
+        LivoxtoWrist3link.row(3) << 0, 0, 0, 1;
+        LivoxtoAuboBase = auboWrist3toBase_mat * LivoxtoWrist3link;
+        RotMatrixtoQuat(LivoxtoAuboBase.block(0,0,3,3), livox_quat);
+
+        geometry_msgs::PoseStamped pose_msg; 
+        pose_msg.pose.position.x = LivoxtoAuboBase(0,3);
+        pose_msg.pose.position.y = LivoxtoAuboBase(1,3);
+        pose_msg.pose.position.z = LivoxtoAuboBase(2,3);
+        pose_msg.pose.orientation.w = livox_quat[0];
+        pose_msg.pose.orientation.x = livox_quat[1];
+        pose_msg.pose.orientation.y = livox_quat[2];
+        pose_msg.pose.orientation.z = livox_quat[3];
+        ROS_INFO("we publish the livox position and orientaion"); 
+        ROS_INFO("the position(x,y,z) is %f , %f, %f", pose_msg.pose.position.x, pose_msg.pose.position.y, pose_msg.pose.position.z);
+        ROS_INFO("the orientation(x,y,z,w) is %f , %f, %f, %f", pose_msg.pose.orientation.x, pose_msg.pose.orientation.y, pose_msg.pose.orientation.z, pose_msg.pose.orientation.w);
+        //------------------------------------------------------------------------------------------
+
         std::unique_lock<std::mutex> lock(m_mutex_lock_handler);
         int current_lidar_index = 0;
         for(int i = 0; i< m_maximum_input_lidar_pointcloud; i++)
@@ -366,22 +443,26 @@ class Laser_feature
 
                     pcl::toROSMsg( *livox_full, temp_out_msg );
                     temp_out_msg.header.stamp = current_time;
-                    temp_out_msg.header.frame_id = "camera_init";
+                    temp_out_msg.header.frame_id = "laser_livox";
                     m_pub_pc_livox_full.publish( temp_out_msg );
 
                     m_voxel_filter_for_surface.setInputCloud( livox_surface );
                     m_voxel_filter_for_surface.filter( *livox_surface );
                     pcl::toROSMsg( *livox_surface, temp_out_msg );
                     temp_out_msg.header.stamp = current_time;
-                    temp_out_msg.header.frame_id = "camera_init";
+                    temp_out_msg.header.frame_id = "laser_livox";
                     m_pub_pc_livox_surface.publish( temp_out_msg );
 
                     m_voxel_filter_for_corner.setInputCloud( livox_corners );
                     m_voxel_filter_for_corner.filter( *livox_corners );
                     pcl::toROSMsg( *livox_corners, temp_out_msg );
                     temp_out_msg.header.stamp = current_time;
-                    temp_out_msg.header.frame_id = "camera_init";
+                    temp_out_msg.header.frame_id = "laser_livox";
                     m_pub_pc_livox_corners.publish( temp_out_msg );
+
+                    pose_msg.header.stamp = current_time;
+                    m_pub_livox_posestamped.publish(pose_msg);
+
                     if ( m_odom_mode == 0 ) // odometry mode
                     {
                         break;
@@ -780,34 +861,36 @@ class Laser_feature
         //printf_line;
         //printf( "sort q time %f \n", t_q_sort );
         //printf_line;
+
+
         sensor_msgs::PointCloud2 laserCloudOutMsg;
         pcl::toROSMsg( *laserCloud, laserCloudOutMsg );
         laserCloudOutMsg.header.stamp = laserCloudMsg->header.stamp;
-        laserCloudOutMsg.header.frame_id = "camera_init";
+        laserCloudOutMsg.header.frame_id = "laser_livox";
         m_pub_laser_pc.publish( laserCloudOutMsg );
 
         sensor_msgs::PointCloud2 cornerPointsSharpMsg;
         pcl::toROSMsg( cornerPointsSharp, cornerPointsSharpMsg );
         cornerPointsSharpMsg.header.stamp = laserCloudMsg->header.stamp;
-        cornerPointsSharpMsg.header.frame_id = "camera_init";
+        cornerPointsSharpMsg.header.frame_id = "laser_livox";
         m_pub_pc_sharp_corner.publish( cornerPointsSharpMsg );
 
         sensor_msgs::PointCloud2 cornerPointsLessSharpMsg;
         pcl::toROSMsg( cornerPointsLessSharp, cornerPointsLessSharpMsg );
         cornerPointsLessSharpMsg.header.stamp = laserCloudMsg->header.stamp;
-        cornerPointsLessSharpMsg.header.frame_id = "camera_init";
+        cornerPointsLessSharpMsg.header.frame_id = "laser_livox";
         m_pub_pc_less_sharp_corner.publish( cornerPointsLessSharpMsg );
 
         sensor_msgs::PointCloud2 surfPointsFlat2;
         pcl::toROSMsg( surfPointsFlat, surfPointsFlat2 );
         surfPointsFlat2.header.stamp = laserCloudMsg->header.stamp;
-        surfPointsFlat2.header.frame_id = "camera_init";
+        surfPointsFlat2.header.frame_id = "laser_livox";
         m_pub_pc_surface_flat.publish( surfPointsFlat2 );
 
         sensor_msgs::PointCloud2 surfPointsLessFlat2;
         pcl::toROSMsg( surfPointsLessFlat, surfPointsLessFlat2 );
         surfPointsLessFlat2.header.stamp = laserCloudMsg->header.stamp;
-        surfPointsLessFlat2.header.frame_id = "camera_init";
+        surfPointsLessFlat2.header.frame_id = "laser_livox";
         m_pub_pc_surface_less_flat.publish( surfPointsLessFlat2 );
 
         // pub each scam
@@ -818,7 +901,7 @@ class Laser_feature
                 sensor_msgs::PointCloud2 scanMsg;
                 pcl::toROSMsg( laserCloudScans[ i ], scanMsg );
                 scanMsg.header.stamp = laserCloudMsg->header.stamp;
-                scanMsg.header.frame_id = "camera_init";
+                scanMsg.header.frame_id = "laser_livox";
                 m_pub_each_scan[ i ].publish( scanMsg );
             }
         }

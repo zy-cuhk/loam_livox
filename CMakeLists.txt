@@ -14,8 +14,11 @@ find_package(catkin REQUIRED COMPONENTS
   rosbag
   std_msgs
   image_transport
+  message_filters
   cv_bridge
   tf
+  visualization_msgs
+  trajectory_msgs
 )
 
 find_package(Eigen3 REQUIRED)
@@ -32,6 +35,7 @@ include_directories(
   ${PCL_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${CERES_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIRS}
   ./include/tools/
   )
 
@@ -42,10 +46,10 @@ catkin_package(
 )
 
 
-add_executable(livox_scanRegistration source/laser_feature_extractor.cpp)
+add_executable(livox_scanRegistration source/laser_feature_extractor.cpp source/aubo_kinematics.cpp)
 target_link_libraries(livox_scanRegistration ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 
-add_executable(livox_laserMapping source/laser_mapping.cpp )
+add_executable(livox_laserMapping source/laser_mapping.cpp source/aubo_kinematics.cpp)
 target_link_libraries(livox_laserMapping ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${CERES_LIBRARIES} )
 
 add_executable(read_camera source/read_camera.cpp)

@@ -7,14 +7,16 @@
     <param name="common/if_verbose_screen_printf" type="int" value="1"/>
     
     <node pkg="loam_livox" type="livox_scanRegistration" name="livox_scanRegistration">
-     <remap from="/laser_points_0" to="/livox/lidar" />
+     <!-- <remap from="/laser_points_0" to="/livox/lidar" /> -->
+     <remap from="/laser_points_0" to="/livox_scanlaser_livox" />
     </node>
 
     <node pkg="loam_livox" type="livox_laserMapping" name="livox_laserMapping" output="screen" />
 
     <arg name="rviz" default="true" />
+
     <group if="$(arg rviz)">
-        <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find loam_livox)/rviz_cfg/rosbag_b.rviz" />
+        <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz1" args="-d $(find loam_livox)/rviz_cfg/rosbag_b.rviz" />
     </group>
 
 </launch>
