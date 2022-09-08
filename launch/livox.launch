@@ -7,7 +7,10 @@
 
     <param name="analysisfile_path" type="string" value="$(env HOME)/Loam_livox" />
     
-    <param name="whether_realrobot" type="int" value="0"/>
+    <!-- # motion deblur, 0: piesewise processing; 1: linear interpolation -->
+    <param name="common/if_motion_deblur" type="int" value="1"/> 
+    <param name="common/if_save_to_pcd_files" type="int" value="0"/> 
+    <param name="whether_realrobot" type="int" value="1"/>
 
     <node pkg="loam_livox" type="livox_scanRegistration" name="livox_scanRegistration">
      <remap from="/laser_points_0" to="/livox/lidar" />
