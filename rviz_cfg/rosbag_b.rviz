@@ -183,7 +183,9 @@ Visualization Manager:
           Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
+          Max Intensity: 4096
           Min Color: 0; 0; 0
+          Min Intensity: 0
           Name: PointCloud2
           Position Transformer: XYZ
           Queue Size: 10
@@ -215,7 +217,9 @@ Visualization Manager:
           Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
+          Max Intensity: 4096
           Min Color: 0; 0; 0
+          Min Intensity: 0
           Name: allMapCloud
           Position Transformer: XYZ
           Queue Size: 10
@@ -243,7 +247,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
+          Max Intensity: 4096
           Min Color: 0; 0; 0
+          Min Intensity: 0
           Name: surround
           Position Transformer: XYZ
           Queue Size: 1
@@ -259,8 +265,8 @@ Visualization Manager:
         - Alpha: 0.30000001192092896
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 1.3895496129989624
-            Min Value: -1.8167107105255127
+            Max Value: 1.8417247533798218
+            Min Value: -2.478182077407837
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -271,7 +277,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: true
           Max Color: 255; 255; 255
+          Max Intensity: 4096
           Min Color: 0; 0; 0
+          Min Intensity: 0
           Name: currPoints
           Position Transformer: XYZ
           Queue Size: 100000
@@ -299,7 +307,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
+          Max Intensity: 4096
           Min Color: 0; 0; 0
+          Min Intensity: 0
           Name: PointCloud2
           Position Transformer: XYZ
           Queue Size: 100
@@ -327,7 +337,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
+          Max Intensity: 4096
           Min Color: 0; 0; 0
+          Min Intensity: 0
           Name: PointCloud2
           Position Transformer: XYZ
           Queue Size: 10
@@ -355,7 +367,9 @@ Visualization Manager:
           Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
+          Max Intensity: 4096
           Min Color: 0; 0; 0
+          Min Intensity: 0
           Name: PointCloud2
           Position Transformer: XYZ
           Queue Size: 1
@@ -387,7 +401,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
+          Max Intensity: 4096
           Min Color: 0; 0; 0
+          Min Intensity: 0
           Name: PointCloud2
           Position Transformer: XYZ
           Queue Size: 10
@@ -415,7 +431,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
+          Max Intensity: 4096
           Min Color: 0; 0; 0
+          Min Intensity: 0
           Name: PointCloud2
           Position Transformer: XYZ
           Queue Size: 10
@@ -443,7 +461,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
+          Max Intensity: 4096
           Min Color: 0; 0; 0
+          Min Intensity: 0
           Name: PointCloud2
           Position Transformer: XYZ
           Queue Size: 10
@@ -581,7 +601,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
+          Max Intensity: 4096
           Min Color: 0; 0; 0
+          Min Intensity: 0
           Name: PointCloud2
           Position Transformer: XYZ
           Queue Size: 10
@@ -609,7 +631,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
+          Max Intensity: 4096
           Min Color: 0; 0; 0
+          Min Intensity: 0
           Name: PointCloud2
           Position Transformer: XYZ
           Queue Size: 10
@@ -641,7 +665,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
+          Max Intensity: 4096
           Min Color: 0; 0; 0
+          Min Intensity: 0
           Name: PointCloud2
           Position Transformer: XYZ
           Queue Size: 10
@@ -669,7 +695,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
+          Max Intensity: 4096
           Min Color: 0; 0; 0
+          Min Intensity: 0
           Name: PointCloud2
           Position Transformer: XYZ
           Queue Size: 10
@@ -713,7 +741,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
+          Max Intensity: 4096
           Min Color: 0; 0; 0
+          Min Intensity: 0
           Name: PointCloud2
           Position Transformer: XYZ
           Queue Size: 10
@@ -741,7 +771,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
+          Max Intensity: 4096
           Min Color: 0; 0; 0
+          Min Intensity: 0
           Name: PointCloud2
           Position Transformer: XYZ
           Queue Size: 10
@@ -771,7 +803,9 @@ Visualization Manager:
       Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: PointCloud2
       Position Transformer: XYZ
       Queue Size: 10
@@ -849,7 +883,9 @@ Visualization Manager:
       Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: PointCloud2
       Position Transformer: XYZ
       Queue Size: 10
@@ -877,7 +913,9 @@ Visualization Manager:
       Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: PointCloud2
       Position Transformer: XYZ
       Queue Size: 10
@@ -905,7 +943,9 @@ Visualization Manager:
       Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: PointCloud2
       Position Transformer: XYZ
       Queue Size: 10
@@ -919,13 +959,13 @@ Visualization Manager:
       Use rainbow: true
       Value: false
     - Class: rviz/Marker
-      Enabled: false
+      Enabled: true
       Marker Topic: /manipulator_traj
       Name: Marker
       Namespaces:
-        {}
+        traj: true
       Queue Size: 100
-      Value: false
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 0; 0; 0
@@ -954,25 +994,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 20.734439849853516
+      Distance: 3.6337780952453613
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.4173882305622101
-        Y: -1.7010914087295532
-        Z: 0.23619578778743744
+        X: -0.09537319093942642
+        Y: -1.5706160068511963
+        Z: -0.17080815136432648
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.14520235359668732
+      Pitch: 0.14520223438739777
       Target Frame: aft_mapped
       Value: Orbit (rviz)
-      Yaw: 1.2965060472488403
+      Yaw: 1.5965057611465454
     Saved:
       - Class: rviz/Orbit
         Distance: 43.46240997314453
