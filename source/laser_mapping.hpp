@@ -1559,6 +1559,13 @@ class Laser_mapping
         m_logger_pcd.printf( "Cost=%f,blk_size = %d \r\n", m_final_opt_summary.final_cost, m_final_opt_summary.num_residual_blocks );
         *( m_logger_pcd.get_ostream() ) << m_final_opt_summary.BriefReport() << endl;
 
+        analysis_file<<"the position of real livox odom is: "
+                         <<m_t_w_curr(0)<<", "<<m_t_w_curr(1)<<", "<<m_t_w_curr(2)<<endl;
+
+        analysis_file<<"the orientation of real livox odom is: "
+                         <<m_q_w_curr.x()<<", "<<m_q_w_curr.y()<<", "<<m_q_w_curr.z()<<", "<<m_q_w_curr.w()<<endl;
+
+
         m_mutex_mapping.unlock();
 
         if ( m_thread_match_buff_refresh.size() < ( size_t ) m_maximum_mapping_buff_thread )
@@ -1825,13 +1832,12 @@ class Laser_mapping
 
             analysis_file<<"Messgage time stamp is: "<<time_interval<<endl;
 
-            analysis_file<<"the position of livox odom is: "
+            analysis_file<<"the position of manipulator end effector odom is: "
                          <<livox_odommat(0,3)<<", "<<livox_odommat(1,3)<<", "<<livox_odommat(2,3)<<endl;
 
-            analysis_file<<"the orientation of livox odom is: "
+            analysis_file<<"the orientation of manipulator end effector odom is: "
                          <<m_q_w_curr.x()<<", "<<m_q_w_curr.y()<<", "<<m_q_w_curr.z()<<", "<<m_q_w_curr.w()<<endl;
 
-            analysis_file<<"----------------------------------------------"<<endl;
 
             m_mutex_querypointcloud.unlock();
 
@@ -1842,13 +1848,15 @@ class Laser_mapping
 
             Common_tools::maintain_maximum_thread_pool<std::future<int> *>( m_thread_pool, m_maximum_parallel_thread );
 
+            ROS_INFO("enter into the process new scan algorithm");
             std::future<int> *thd = new std::future<int>( std::async( std::launch::async, &Laser_mapping::process_new_scan, this ) );
-
+            ROS_INFO("leave the process new scan algorithm");
             *( m_logger_timer.get_ostream() ) << m_timer.toc_string( "Prepare to enter thread" ) << std::endl;
             m_thread_pool.push_back( thd );
 
             std::this_thread::sleep_for( std::chrono::nanoseconds( 10 ) );
-
+            ROS_INFO("----------------------the loop is over------------------------");
+            analysis_file<<"----------------------------------------------"<<endl;
         }
         analysis_file.flush();
         analysis_file.close();
@@ -1892,26 +1900,48 @@ class Laser_mapping
 
     void visualize_ManipulatorTrajectory(Eigen::MatrixXd& livox_odommat, visualization_msgs::Marker& traj_marker){
 
-        traj_marker.header.stamp = ros::Time::now();
         traj_marker.header.frame_id = "laser_init";
-        traj_marker.ns = "traj";
-        traj_marker.pose.orientation.w = 1;
-        traj_marker.type = visualization_msgs::Marker::LINE_STRIP;
+        traj_marker.header.stamp = ros::Time::now();
+        traj_marker.ns = "basic_shapes";
+        traj_marker.id = 0;
+        traj_marker.type = visualization_msgs::Marker::SPHERE;
         traj_marker.action = visualization_msgs::Marker::ADD;
-        traj_marker.scale.x = 0.03; // 0.2; 0.03
-        traj_marker.lifetime = ros::Duration();
+        traj_marker.pose.position.x = livox_odommat(0,3);
+        traj_marker.pose.position.y = livox_odommat(1,3);
+        traj_marker.pose.position.z = livox_odommat(2,3);
+        traj_marker.pose.orientation.x = 0.0;
+        traj_marker.pose.orientation.y = 0.0;
+        traj_marker.pose.orientation.z = 0.0;
+        traj_marker.pose.orientation.w = 1.0;
+        traj_marker.scale.x = 0.05;   
+        traj_marker.scale.y = 0.05; 
+        traj_marker.scale.z = 0.05;
+        traj_marker.color.r = 0.0f;
+        traj_marker.color.g = 0.0f;
+        traj_marker.color.b = 1.0f;
+        traj_marker.color.a = 0.8;
 
-        geometry_msgs::Point p;
-        p.x = livox_odommat(0,3);
-        p.y = livox_odommat(1,3);
-        p.z = livox_odommat(2,3);
-        traj_marker.points.push_back(p);
-        std_msgs::ColorRGBA c;
-        c.g = 0.0;
-        c.r = 1.0;
-        c.b = 0.0;
-        c.a = 1.0;
-        traj_marker.colors.push_back(c);
+        // traj_marker.header.stamp = ros::Time::now();
+        // traj_marker.header.frame_id = "laser_init";
+        // traj_marker.ns = "traj";
+        // traj_marker.pose.orientation.w = 1;
+        // traj_marker.type = visualization_msgs::Marker::LINE_STRIP;
+        // traj_marker.action = visualization_msgs::Marker::ADD;
+        // traj_marker.scale.x = 0.05; // 0.2; 0.03
+        // // traj_marker.lifetime = ros::Duration();
+        // traj_marker.points.clear();
+        // traj_marker.colors.clear();
+        // geometry_msgs::Point p;
+        // p.x = livox_odommat(0,3);
+        // p.y = livox_odommat(1,3);
+        // p.z = livox_odommat(2,3);
+        // traj_marker.points.push_back(p);
+        // std_msgs::ColorRGBA c;
+        // c.g = 0.0;
+        // c.r = 1.0;
+        // c.b = 0.0;
+        // c.a = 1.0;
+        // traj_marker.colors.push_back(c);
 
     }
 };
